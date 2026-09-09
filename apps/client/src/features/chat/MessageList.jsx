@@ -1,10 +1,21 @@
+import { useEffect, useRef } from 'react';
+
 /**
  * Displays a list of messages. `messages` is expected to be
- * `{ id, from: 'me' | 'stranger', text }[]`. Real-time transport is
- * wired in a later phase — this component only needs data shaped this
- * way, so it doesn't change when that happens.
+ * `{ id, from: 'me' | 'stranger', text }[]`.
+ *
+ * Auto-scrolls to the newest message whenever the list changes, so the
+ * latest message is always in view as the conversation grows — the
+ * container itself scrolls internally (see .message-list's overflow-y),
+ * the page never does.
  */
 export default function MessageList({ messages, emptyMessage = "Say hi — you're connected." }) {
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages]);
+
   return (
     <div className="message-list" role="log" aria-live="polite" aria-label="Conversation">
       {messages.length === 0 && (
@@ -15,6 +26,7 @@ export default function MessageList({ messages, emptyMessage = "Say hi — you'r
           {message.text}
         </div>
       ))}
+      <div ref={bottomRef} aria-hidden="true" />
     </div>
   );
 }

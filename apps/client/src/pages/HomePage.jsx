@@ -2,6 +2,13 @@ import ModeCard from '../features/home/ModeCard.jsx';
 import { VideoIcon, ChatIcon } from '../shared/ui/icons.jsx';
 import { useSocketConnection } from '../features/socket/SocketConnectionContext.jsx';
 
+const STATUS_LABEL = {
+  connecting: 'Connecting…',
+  reconnecting: 'Reconnecting…',
+  error: 'Connection error',
+  disconnected: 'Disconnected',
+};
+
 /**
  * Mode selection. The whole app pivots on this one choice, so the page
  * stays deliberately narrow in scope: name, one line of framing, two
@@ -10,6 +17,7 @@ import { useSocketConnection } from '../features/socket/SocketConnectionContext.
 export default function HomePage({ onSelectMode }) {
   const { status } = useSocketConnection();
   const offline = status !== 'connected';
+  const statusLabel = STATUS_LABEL[status];
 
   return (
     <div className="page page--home">
@@ -20,7 +28,7 @@ export default function HomePage({ onSelectMode }) {
             aria-hidden="true"
           />
           Relay
-          {offline && <span className="home-logo__status">Reconnecting…</span>}
+          {offline && statusLabel && <span className="home-logo__status">{statusLabel}</span>}
         </span>
       </header>
 

@@ -6,6 +6,13 @@ import { VideoIcon } from '../../shared/ui/icons.jsx';
  * (rather than a `src` attribute, which doesn't work for MediaStream
  * objects). Local video is always muted to avoid echoing the user's own
  * mic back at them; remote video carries real audio.
+ *
+ * Both videos are displayed mirrored (flipped horizontally via CSS —
+ * see `.video-stage__video` in app.css). This is purely a display
+ * transform on each viewer's own screen: the actual MediaStreamTrack
+ * sent over WebRTC in either direction is untouched, so which way
+ * someone's video is flipped is a per-viewer, local-only setting, not
+ * something transmitted to or shared with the peer.
  */
 export default function VideoStage({ localStream, remoteStream, cameraOn, showRemotePlaceholder }) {
   const localVideoRef = useRef(null);

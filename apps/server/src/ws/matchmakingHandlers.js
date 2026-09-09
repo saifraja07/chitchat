@@ -1,4 +1,3 @@
-import { logger } from '../infra/logger/logger.js';
 import { withValidation } from './eventValidation.js';
 import { queueJoinPayloadSchema, emptyPayloadSchema } from './schemas.js';
 import { joinQueue, leaveActive, nextMatch } from '../domain/matchmaking/matchmakingService.js';
@@ -26,7 +25,6 @@ export function registerMatchmakingHandlers(io, socket, sessionActionLock, match
         queueJoinPayloadSchema,
         async (sock, { mode }) => {
           if (!matchActionLimiter.allow(sock.id)) {
-            logger.warn({ socketId: sock.id }, 'Matchmaking action rate limit exceeded');
             sock.emit('queue:error', { message: 'Too many requests. Please slow down.' });
             return;
           }
@@ -40,7 +38,6 @@ export function registerMatchmakingHandlers(io, socket, sessionActionLock, match
               roomId: result.roomId,
               role: 'initiator',
             });
-            logger.info({ roomId: result.roomId, mode }, 'Room created (match found)');
           } else if (result.status === 'waiting') {
             sock.emit('queue:joined', { mode });
           } else {
@@ -60,7 +57,6 @@ export function registerMatchmakingHandlers(io, socket, sessionActionLock, match
         emptyPayloadSchema,
         async (sock) => {
           if (!matchActionLimiter.allow(sock.id)) {
-            logger.warn({ socketId: sock.id }, 'Matchmaking action rate limit exceeded');
             sock.emit('queue:error', { message: 'Too many requests. Please slow down.' });
             return;
           }
@@ -70,7 +66,6 @@ export function registerMatchmakingHandlers(io, socket, sessionActionLock, match
 
           if (result.leftRoomPeerId) {
             await notifySession(io, result.leftRoomPeerId, 'match:ended', { reason: 'peer_left' });
-            logger.info('Room closed (Next)');
           }
 
           if (result.status === 'matched') {
@@ -79,7 +74,6 @@ export function registerMatchmakingHandlers(io, socket, sessionActionLock, match
               roomId: result.roomId,
               role: 'initiator',
             });
-            logger.info({ roomId: result.roomId }, 'Room created (match found via Next)');
           } else if (result.status === 'waiting') {
             sock.emit('queue:joined', { mode: null });
           } else if (result.status === 'no-active-mode') {
@@ -101,7 +95,6 @@ export function registerMatchmakingHandlers(io, socket, sessionActionLock, match
 
         if (result.left === 'room') {
           await notifySession(io, result.peerId, 'match:ended', { reason: 'peer_left' });
-          logger.info('Room closed (Leave)');
         }
       })(socket)
     )
@@ -118,7 +111,6 @@ export async function cleanupMatchmakingOnDisconnect(io, sessionId) {
   const result = await leaveActive(sessionId);
   if (result.left === 'room') {
     await notifySession(io, result.peerId, 'match:ended', { reason: 'peer_disconnected' });
-    logger.info('Room closed (peer disconnected)');
   }
   return result;
 }

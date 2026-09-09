@@ -1,7 +1,6 @@
 import { Server } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { config } from '../config/env.js';
-import { logger } from '../infra/logger/logger.js';
 import { createConnectionValidation } from './middleware/connectionValidation.js';
 import { withValidation } from './eventValidation.js';
 import { heartbeatPayloadSchema } from './schemas.js';
@@ -12,7 +11,7 @@ import { registerMatchmakingHandlers, cleanupMatchmakingOnDisconnect } from './m
 import { registerChatHandlers } from './chatHandlers.js';
 import { registerWebrtcHandlers } from './webrtcHandlers.js';
 import { createSession, refreshSession, destroySession } from '../domain/session/sessionService.js';
-import { buildIceServers, isTurnConfigured } from '../domain/webrtc/iceServers.js';
+import { buildIceServers } from '../domain/webrtc/iceServers.js';
 import { getRedisClient } from '../infra/redis/redisClient.js';
 
 /**
@@ -68,24 +67,14 @@ export async function createSocketServer(httpServer) {
   // duplicate() creates a fresh client with its own EventEmitter — it does
   // NOT inherit pubClient's error handlers. An 'error' event with zero
   // listeners crashes the process (standard Node EventEmitter behavior),
-  // so this needs its own handler even though it just logs the same way.
-  subClient.on('error', (err) => logger.error({ err }, 'Redis subscriber connection error'));
+  // so this needs its own handler, even though all it does is keep the
+  // process alive by acknowledging the error.
+  subClient.on('error', (err) => console.error('Redis subscriber connection error:', err));
   await subClient.connect();
   io.adapter(createAdapter(pubClient, subClient));
 
   const ipLimiter = createIpConnectionLimiter(config.connectionLimit);
   io.use(createConnectionValidation(ipLimiter));
-
-  if (isTurnConfigured()) {
-    logger.info({ turnUrls: config.ice.turnUrls }, 'TURN configured');
-  } else {
-    const log = config.nodeEnv === 'production' ? logger.warn.bind(logger) : logger.info.bind(logger);
-    log(
-      'TURN not configured — WebRTC calls will rely on STUN/direct connectivity only. ' +
-        'Peers behind symmetric NATs or restrictive firewalls may fail to connect. ' +
-        'Set TURN_URLS and TURN_SHARED_SECRET to enable relay fallback.'
-    );
-  }
 
   const heartbeatLimiter = createSocketRateLimiter(HEARTBEAT_RATE_LIMIT);
   const chatRateLimiter = createSocketRateLimiter({
@@ -104,13 +93,11 @@ export async function createSocketServer(httpServer) {
   const sessionActionLock = createSessionActionLock();
 
   io.on('connection', async (socket) => {
-    logger.info({ socketId: socket.id }, 'Socket connected');
-
     let sessionId;
     try {
       sessionId = await createSession(socket.id);
     } catch (err) {
-      logger.error({ socketId: socket.id, err }, 'Failed to create session (Redis unavailable?)');
+      console.error(`Failed to create session for socket ${socket.id} (Redis unavailable?):`, err);
       socket.emit('session:error', { message: 'Could not establish a session. Please retry.' });
       socket.disconnect(true);
       return;
@@ -131,7 +118,6 @@ export async function createSocketServer(httpServer) {
       'presence:heartbeat',
       withValidation(heartbeatPayloadSchema, async (sock) => {
         if (!heartbeatLimiter.allow(sock.id)) {
-          logger.warn({ socketId: sock.id }, 'Heartbeat rate limit exceeded');
           return;
         }
 
@@ -141,7 +127,7 @@ export async function createSocketServer(httpServer) {
             sock.emit('session:expired');
           }
         } catch (err) {
-          logger.error({ socketId: sock.id, err }, 'Heartbeat refresh failed');
+          console.error(`Heartbeat refresh failed for socket ${sock.id}:`, err);
         }
       })(socket)
     );
@@ -150,32 +136,32 @@ export async function createSocketServer(httpServer) {
     registerChatHandlers(io, socket, chatRateLimiter);
     registerWebrtcHandlers(io, socket, iceRateLimiter, signalRateLimiter);
 
-    socket.on('disconnect', async (reason) => {
-      logger.info({ socketId: socket.id, reason }, 'Socket disconnected');
+    socket.on('disconnect', async () => {
       heartbeatLimiter.clear(socket.id);
       chatRateLimiter.clear(socket.id);
       iceRateLimiter.clear(socket.id);
       matchActionLimiter.clear(socket.id);
       signalRateLimiter.clear(socket.id);
-      sessionActionLock.clear(socket.id);
       if (socket.data.clientIp) {
         ipLimiter.onDisconnect(socket.data.clientIp);
       }
       try {
+        // Must happen BEFORE reading/mutating this session's matchmaking
+        // state — see sessionActionLock.js's comment on waitForIdle for
+        // why racing an in-flight queue:join/match:next/match:leave here
+        // is a real bug, not a theoretical one.
+        await sessionActionLock.waitForIdle(socket.id);
+        sessionActionLock.clear(socket.id);
         await cleanupMatchmakingOnDisconnect(io, socket.data.sessionId);
         await destroySession(socket.id);
       } catch (err) {
-        logger.error({ socketId: socket.id, err }, 'Session cleanup failed on disconnect');
+        console.error(`Session cleanup failed on disconnect for socket ${socket.id}:`, err);
       }
     });
 
     socket.on('error', (err) => {
-      logger.error({ socketId: socket.id, err }, 'Socket error');
+      console.error(`Socket error [${socket.id}]:`, err);
     });
-  });
-
-  io.engine.on('connection_error', (err) => {
-    logger.warn({ code: err.code, message: err.message }, 'Socket.IO engine connection error');
   });
 
   return io;

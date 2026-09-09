@@ -58,8 +58,9 @@ export function MicOffIcon(props) {
 export function CameraIcon(props) {
   return (
     <svg {...common} {...props}>
-      <rect x="2.5" y="6" width="14" height="12" rx="2.5" />
-      <path d="M16.5 10.5 21 7.5v9l-4.5-3" />
+      <rect x="4" y="6" width="16" height="12" rx="3" />
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M9 6 10 4h4l1 2" />
     </svg>
   );
 }
@@ -67,9 +68,9 @@ export function CameraIcon(props) {
 export function CameraOffIcon(props) {
   return (
     <svg {...common} {...props}>
-      <path d="M2.5 6h9.5a2.5 2.5 0 0 1 2.5 2.5v3" />
-      <path d="M16.5 10.5 21 7.5v9l-4.5-3" />
-      <path d="M14.5 18H5a2.5 2.5 0 0 1-2.5-2.5V9" />
+      <rect x="4" y="6" width="16" height="12" rx="3" />
+      <path d="M9 6 10 4h4l1 2" />
+      <path d="M9.5 9.5a3.2 3.2 0 0 0 4.7 4.3" />
       <path d="M3 3l18 18" />
     </svg>
   );

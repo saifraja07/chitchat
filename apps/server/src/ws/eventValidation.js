@@ -1,5 +1,3 @@
-import { logger } from '../infra/logger/logger.js';
-
 /**
  * Wraps a Socket.IO event handler with schema validation. Every
  * client-supplied payload goes through here before touching domain
@@ -24,15 +22,14 @@ export function withValidation(schema, handler, { errorEvent } = {}) {
     const result = schema.safeParse(rawPayload ?? {});
 
     if (!result.success) {
-      logger.warn(
-        { socketId: socket.id, issues: result.error.issues },
-        'Rejected event: invalid payload'
-      );
       return;
     }
 
     Promise.resolve(handler(socket, result.data)).catch((err) => {
-      logger.error({ socketId: socket.id, err }, 'Unhandled error in event handler');
+      // Unexpected failure inside a handler (e.g. a Redis hiccup) — the
+      // only place this is ever surfaced, so it's worth printing rather
+      // than swallowing entirely.
+      console.error(`Unhandled error in event handler [socket ${socket.id}]:`, err);
       if (errorEvent) {
         socket.emit(errorEvent, { message: 'Something went wrong. Please try again.' });
       }

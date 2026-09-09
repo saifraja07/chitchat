@@ -75,8 +75,6 @@ export const config = Object.freeze({
     turnCredentialTtlSeconds: toInt(process.env.TURN_CREDENTIAL_TTL_SECONDS, 3600),
   },
 
-  logLevel: process.env.LOG_LEVEL || 'info',
-
   rateLimit: {
     windowMs: toInt(process.env.RATE_LIMIT_WINDOW_MS, 60_000),
     max: toInt(process.env.RATE_LIMIT_MAX, 100),

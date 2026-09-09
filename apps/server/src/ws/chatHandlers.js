@@ -1,4 +1,3 @@
-import { logger } from '../infra/logger/logger.js';
 import { withValidation } from './eventValidation.js';
 import { chatMessagePayloadSchema } from './schemas.js';
 import { getActiveRoomPeer } from '../domain/matchmaking/matchmakingService.js';
@@ -24,7 +23,6 @@ export function registerChatHandlers(io, socket, chatRateLimiter) {
       chatMessagePayloadSchema,
       async (sock, { text }) => {
         if (!chatRateLimiter.allow(sock.id)) {
-          logger.warn({ socketId: sock.id }, 'Chat message rate limit exceeded');
           sock.emit('chat:error', { message: 'You are sending messages too quickly.' });
           return;
         }

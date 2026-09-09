@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { getRedisClient } from '../../infra/redis/redisClient.js';
-import { logger } from '../../infra/logger/logger.js';
 import { config } from '../../config/env.js';
 
 /**
@@ -126,6 +125,4 @@ export async function destroySession(socketId) {
   if (!sessionId) return;
 
   await redis.multi().del(sessionKey(sessionId)).del(socketKey(socketId)).exec();
-
-  logger.info({ socketId, sessionId }, 'Session destroyed');
 }

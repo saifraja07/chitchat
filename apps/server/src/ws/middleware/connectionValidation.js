@@ -1,4 +1,3 @@
-import { logger } from '../../infra/logger/logger.js';
 import { config } from '../../config/env.js';
 
 /**
@@ -34,7 +33,6 @@ export function createConnectionValidation(ipLimiter) {
     const { handshake } = socket;
 
     if (!handshake || typeof handshake.address !== 'string') {
-      logger.warn('Rejected socket connection with malformed handshake');
       return next(new Error('Invalid connection'));
     }
 
@@ -43,13 +41,11 @@ export function createConnectionValidation(ipLimiter) {
     // an Origin header at all — that's normal and not itself a CORS
     // concern, so only reject when an Origin IS present and doesn't match.
     if (origin && !config.corsOrigins.includes(origin)) {
-      logger.warn({ origin }, 'Rejected socket connection from disallowed origin');
       return next(new Error('Origin not allowed'));
     }
 
     const ip = handshake.address;
     if (!ipLimiter.canConnect(ip)) {
-      logger.warn({ ip }, 'Rejected socket connection: per-IP connection limit exceeded');
       return next(new Error('Too many connections'));
     }
 

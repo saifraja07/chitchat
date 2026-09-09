@@ -1,4 +1,3 @@
-import { logger } from '../infra/logger/logger.js';
 import { withValidation } from './eventValidation.js';
 import { webrtcSdpPayloadSchema, webrtcIceCandidatePayloadSchema } from './schemas.js';
 import { getActiveRoomPeer } from '../domain/matchmaking/matchmakingService.js';
@@ -22,15 +21,12 @@ export function registerWebrtcHandlers(io, socket, iceRateLimiter, signalRateLim
       // No active room (already left/ended, or never matched) — this is
       // a normal race between in-flight signaling and the match ending
       // (e.g. an ICE candidate that was already on the wire when the
-      // peer clicked Next), not something to alarm on. Logged at debug
-      // for diagnosability without being noisy in production.
-      logger.debug({ socketId: socket.id, event }, 'Dropped signaling message: no active room');
+      // peer clicked Next), not something to alarm on.
       return;
     }
 
     const peerSocketId = await getSocketIdForSession(active.peerId);
     if (!peerSocketId) {
-      logger.debug({ event, roomId: active.roomId }, 'Dropped signaling message: peer socket gone');
       return;
     }
 
@@ -41,7 +37,6 @@ export function registerWebrtcHandlers(io, socket, iceRateLimiter, signalRateLim
     'webrtc:offer',
     withValidation(webrtcSdpPayloadSchema, async (sock, payload) => {
       if (!signalRateLimiter.allow(sock.id)) {
-        logger.warn({ socketId: sock.id }, 'WebRTC offer rate limit exceeded');
         return;
       }
       await relay(sock.data.sessionId, 'webrtc:offer', payload);
@@ -52,7 +47,6 @@ export function registerWebrtcHandlers(io, socket, iceRateLimiter, signalRateLim
     'webrtc:answer',
     withValidation(webrtcSdpPayloadSchema, async (sock, payload) => {
       if (!signalRateLimiter.allow(sock.id)) {
-        logger.warn({ socketId: sock.id }, 'WebRTC answer rate limit exceeded');
         return;
       }
       await relay(sock.data.sessionId, 'webrtc:answer', payload);
@@ -63,7 +57,6 @@ export function registerWebrtcHandlers(io, socket, iceRateLimiter, signalRateLim
     'webrtc:ice-candidate',
     withValidation(webrtcIceCandidatePayloadSchema, async (sock, payload) => {
       if (!iceRateLimiter.allow(sock.id)) {
-        logger.warn({ socketId: sock.id }, 'ICE candidate rate limit exceeded');
         return;
       }
       await relay(sock.data.sessionId, 'webrtc:ice-candidate', payload);

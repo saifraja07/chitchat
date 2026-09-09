@@ -13,8 +13,9 @@ npm install
 npm run dev                # or `npm start` for a non-watching run
 ```
 
-Requires a running Redis instance (see `docker-compose.yml` at the repo
-root for local dev, or run `redis-server` directly).
+Requires a running Redis instance. Install it locally (e.g. `brew install redis`
+on macOS, or your distro's package manager on Linux) and start it with
+`redis-server`, or point `REDIS_URL` at a hosted Redis instance.
 
 ## Environment variables
 
@@ -26,7 +27,6 @@ by category:
 | Core | `NODE_ENV`, `PORT` | `NODE_ENV=production` enables stricter startup checks |
 | CORS | `CORS_ORIGINS` | **Required in production.** Comma-separated allowed frontend origins |
 | Redis | `REDIS_URL`, `REDIS_CONNECT_TIMEOUT_MS` | **Required in production.** Supports `redis://:password@host:port` and `rediss://` for TLS |
-| Logging | `LOG_LEVEL` | `trace`..`fatal`; pretty-printed in development, structured JSON otherwise |
 | HTTP hardening | `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, `REQUEST_BODY_LIMIT` | Applies to the HTTP API surface (health checks etc.), not WebSocket events |
 | Shutdown | `SHUTDOWN_TIMEOUT_MS` | Force-exit if graceful shutdown hangs |
 | Matchmaking TTLs | `QUEUE_MEMBER_TTL_SECONDS`, `ROOM_TTL_SECONDS` | Safety-net expirations — explicit cleanup is the primary mechanism; room TTL is refreshed on heartbeat while a room is active |
@@ -34,7 +34,10 @@ by category:
 | Matchmaking action rate limit | `MATCH_ACTION_RATE_LIMIT_WINDOW_MS`, `MATCH_ACTION_RATE_LIMIT_MAX` | Bounds `queue:join`/`match:next`/`match:leave` spam, per socket |
 | WebRTC signal rate limit | `WEBRTC_SIGNAL_RATE_LIMIT_WINDOW_MS`, `WEBRTC_SIGNAL_RATE_LIMIT_MAX` | Bounds offer/answer/ICE spam, per socket |
 | Connection limiting | `IP_CONNECT_RATE_WINDOW_MS`, `IP_CONNECT_RATE_MAX`, `IP_CONNECT_MAX_CONCURRENT` | Process-local per-IP guard — see limitations below |
-| Observability | `STATS_INTERVAL_MS` | Periodic queue-depth/active-room log snapshot |
+
+The app prints plain `console.log`/`console.error` output for startup
+and unexpected failures only — there's no structured logging library
+or per-request request log wired up.
 
 ## Architecture at a glance
 

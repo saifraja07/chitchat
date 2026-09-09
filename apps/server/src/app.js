@@ -1,9 +1,7 @@
 import http from 'node:http';
 import { config, assertProductionConfig } from './config/env.js';
-import { logger } from './infra/logger/logger.js';
 import { createApp } from './http/app.js';
 import { createSocketServer } from './ws/socketServer.js';
-import { startStatsLogger } from './ws/statsLogger.js';
 import { connectRedis, disconnectRedis } from './infra/redis/redisClient.js';
 
 async function main() {
@@ -21,15 +19,14 @@ async function main() {
   try {
     await connectRedis();
   } catch (err) {
-    logger.error({ err }, 'Initial Redis connection failed; exiting (Redis is required)');
+    console.error('Initial Redis connection failed; exiting (Redis is required):', err);
     process.exit(1);
   }
 
   const io = await createSocketServer(httpServer);
-  const stopStatsLogger = startStatsLogger();
 
   httpServer.listen(config.port, () => {
-    logger.info({ port: config.port, env: config.nodeEnv }, 'Server listening');
+    console.log(`Server listening on port ${config.port} (${config.nodeEnv})`);
   });
 
   let shuttingDown = false;
@@ -38,26 +35,22 @@ async function main() {
     if (shuttingDown) return;
     shuttingDown = true;
 
-    logger.info({ signal }, 'Shutdown initiated');
-
     const forceExitTimer = setTimeout(() => {
-      logger.error('Graceful shutdown timed out, forcing exit');
+      console.error('Graceful shutdown timed out, forcing exit');
       process.exit(1);
     }, config.shutdownTimeoutMs);
     forceExitTimer.unref();
 
     try {
-      stopStatsLogger();
       io.close();
       await new Promise((resolve, reject) => {
         httpServer.close((err) => (err ? reject(err) : resolve()));
       });
       await disconnectRedis();
       clearTimeout(forceExitTimer);
-      logger.info('Shutdown complete');
       process.exit(0);
     } catch (err) {
-      logger.error({ err }, 'Error during shutdown');
+      console.error('Error during shutdown:', err);
       process.exit(1);
     }
   }
@@ -66,16 +59,15 @@ async function main() {
   process.on('SIGINT', () => shutdown('SIGINT'));
 
   process.on('unhandledRejection', (err) => {
-    logger.error({ err }, 'Unhandled promise rejection');
+    console.error('Unhandled promise rejection:', err);
   });
   process.on('uncaughtException', (err) => {
-    logger.error({ err }, 'Uncaught exception');
+    console.error('Uncaught exception:', err);
     shutdown('uncaughtException');
   });
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
   console.error('Fatal error during startup:', err);
   process.exit(1);
 });

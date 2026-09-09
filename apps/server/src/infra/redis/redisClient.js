@@ -1,6 +1,5 @@
 import Redis from 'ioredis';
 import { config } from '../../config/env.js';
-import { logger } from '../logger/logger.js';
 import { registerMatchmakingCommands } from './luaCommands.js';
 
 /**
@@ -14,9 +13,7 @@ import { registerMatchmakingCommands } from './luaCommands.js';
  * crash the process over.
  */
 function retryStrategy(attempt) {
-  const delay = Math.min(attempt * 200, 5000);
-  logger.warn({ attempt, delayMs: delay }, 'Redis connection retry scheduled');
-  return delay;
+  return Math.min(attempt * 200, 5000);
 }
 
 let client = null;
@@ -35,12 +32,12 @@ export function getRedisClient() {
     lazyConnect: true,
   });
 
-  client.on('connect', () => logger.info('Redis connecting'));
-  client.on('ready', () => logger.info('Redis connection ready'));
-  client.on('error', (err) => logger.error({ err }, 'Redis connection error'));
-  client.on('close', () => logger.warn('Redis connection closed'));
-  client.on('reconnecting', () => logger.info('Redis reconnecting'));
-  client.on('end', () => logger.warn('Redis connection ended (no more retries)'));
+  // Required: an 'error' event with zero listeners crashes the process
+  // (standard Node EventEmitter behavior) — this isn't optional logging,
+  // it's what keeps a transient Redis blip from taking the whole server
+  // down. ioredis retries the connection on its own via retryStrategy
+  // above regardless of whether this listener does anything else.
+  client.on('error', (err) => console.error('Redis connection error:', err));
 
   registerMatchmakingCommands(client);
 
@@ -59,8 +56,7 @@ export async function isRedisHealthy() {
   try {
     const pong = await client.ping();
     return pong === 'PONG';
-  } catch (err) {
-    logger.error({ err }, 'Redis health check failed');
+  } catch {
     return false;
   }
 }
@@ -69,9 +65,8 @@ export async function disconnectRedis() {
   if (!client) return;
   try {
     await client.quit();
-  } catch (err) {
+  } catch {
     // quit() can fail if the connection is already down; force-close instead.
-    logger.warn({ err }, 'Redis quit failed, disconnecting forcibly');
     client.disconnect();
   } finally {
     client = null;
